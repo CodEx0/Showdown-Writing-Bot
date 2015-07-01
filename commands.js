@@ -61,7 +61,7 @@ exports.commands = {
 		if (Config.excepts.indexOf(toId(by)) === -1) return false;
 		try {
 			this.uncacheTree('./commands.js');
-			Commands = require('./commands.js').commands;
+			global.Commands = require('./commands.js').commands;
 			this.say(room, 'Reloaded. .w.');
 			console.log(by + ' reloaded the bot.');
 		} catch (e) {
@@ -239,7 +239,7 @@ exports.commands = {
 				this.writeSettings();
 				this.say(room, 'The command ' + Config.commandcharacter + '' + cmd + ' is now ' +
 					(settingsLevels[newRank] === newRank ? ' available for users of rank ' + newRank + ' and above.' :
-					(this.settings[cmd][room] ? 'available for all users in this room.' : 'unavailable for use in this room.')))
+					(this.settings[cmd][room] ? 'available for all users in this room.' : 'unavailable for use in this room.')));
 			}
 		}
 	},
@@ -319,7 +319,7 @@ exports.commands = {
 		if (!arg) return this.say(room, 'You must specify a regular expression to (un)blacklist.');
 
 		try {
-			new RegExp(arg, 'i');
+			var test = new RegExp(arg, 'i');
 		} catch (e) {
 			return this.say(room, e.message);
 		}
@@ -484,8 +484,8 @@ exports.commands = {
 		var type = characterTypes[Math.floor(characterTypes.length * Math.random())];
 		var role = roles[Math.floor(roles.length * Math.random())];
 		var gender = ["male", "female"][Math.floor(2 * Math.random())];
-		if (Math.floor(Math.random() * 4200 < 20)) var gender = "hermaphrodite";
-		if (Math.floor(Math.random() * 4200 < 10) || type === "...thing") var gender = "neuter";
+		if (Math.floor(Math.random() * 4200 < 20)) gender = "hermaphrodite";
+		if (Math.floor(Math.random() * 4200 < 10) || type === "...thing") gender = "neuter";
 		var pronoun = pronouns[gender];
 		var possessivePronoun = possessivePronouns[gender];
 		var perkList = perks.slice(0);
@@ -563,7 +563,7 @@ exports.commands = {
 			var parameters = arg.toLowerCase().split(", ");
 			var hasBeenSet = false;
 			for (var j = 0; j < parameters.length; j++) {
-				if (parameters[j] == parseInt(parameters[j], 10)) {
+				if (parameters[j] === parseInt(parameters[j], 10)) {
 					if (hasBeenSet) return this.say(room, text + "Please only specify number of pokemon once");
 					if (parameters[j] < 1 || parameters[j] > 6) return this.say(room, text + "Quantity of random pokemon must be between 1 and 6.");
 					pokequantity = parameters[j];
@@ -619,7 +619,7 @@ exports.commands = {
 				}
 			}
 		}
-		if (pokequantity == 1 && room.charAt(0) !== ',' && this.hasRank(by, '+%@#&~')) text = '!dt ';
+		if (pokequantity === 1 && room.charAt(0) !== ',' && this.hasRank(by, '+%@#&~')) text = '!dt ';
 
 		var attempt = -1;
 		var dexNumbers = [];
@@ -658,7 +658,7 @@ exports.commands = {
 			if (skipPoke) {i--; continue;}
 			if (Pokedex[pokeNum].mega && conditions.mega !== 0) {
 				var buffer = Pokedex[pokeNum].species;
-				var megaNum = (conditions.mega === 2 ? 0 : -1)
+				var megaNum = (conditions.mega === 2 ? 0 : -1);
 				megaNum += Math.floor((Pokedex[pokeNum].mega.length + (conditions.mega === 2 ? 0 : 1)) * Math.random());
 				if (megaNum == -1) {
 					randompokes.push(buffer);
@@ -706,7 +706,7 @@ exports.commands = {
 		var parameters = arg.split(', ');
 		if (parameters.length > 10) return this.say(room, text + "Please use 10 or fewer arguments.");
 		for (var i = 0; i < parameters.length; i++) {
-			if (parameters[i] == parseInt(parameters[i], 10)) {
+			if (parameters[i] === parseInt(parameters[i], 10)) {
 				if (hasBeenSet) return this.say(room, text + "Please only specify number of pokemon once");
 				if (parameters[i] < 1 || parameters[i] > 6) return this.say(room, text + "Quantity of random moves must be between 1 and 6.");
 				moveQuantity = parameters[i];
@@ -744,12 +744,12 @@ exports.commands = {
 		if (singleType) {
 			if (moveQuantity > 3) return this.say(room, text + "Invalid generation conditions.");
 			for (var set in types) {
-				if (types[set] == 1) types[set] = 0;
+				if (types[set] === 1) types[set] = 0;
 			}
 		}
 		if (singleClass) {
 			for (var set in classes) {
-				if (classes[set] == 1) classes[set] = 0;
+				if (classes[set] === 1) classes[set] = 0;
 			}
 		}
 
@@ -795,8 +795,8 @@ exports.commands = {
 		var type = characterTypes[Math.floor(characterTypes.length * Math.random())];
 		var role = roles[Math.floor(4 * Math.random())];
 		var gender = ["male", "female"][Math.floor(2 * Math.random())];
-		if (Math.floor(Math.random() * 4200 < 20)) var gender = "hermaphrodite";
-		if (Math.floor(Math.random() * 4200 < 10) || type === "...thing") var gender = "neuter";
+		if (Math.floor(Math.random() * 4200 < 20)) gender = "hermaphrodite";
+		if (Math.floor(Math.random() * 4200 < 10) || type === "...thing") gender = "neuter";
 		var pronoun = pronouns[gender];
 		var possessivePronoun = possessivePronouns[gender];
 		var perkList = perks.slice(0);
@@ -1151,122 +1151,122 @@ exports.commands = {
 		}
 	},
 	genrp: 'randRP',
-    	genRP: 'randRP',
-    	randrp: 'randRP',
-    	randRP: function(arg, by, room) {
-        	var text = this.hasRank(by, '+%@#&~') || room.charAt(0) === ',' ? '' : '/pm ' + by + ', ';
-        	arg = arg.split(", ");
-        	if (!arg || arg.length < 2) return this.say(room, "Please specify two names, seperated by a comma.");
-        	var X = arg[0];
-        	var Y = arg[1];
-        	var RANDNUM = Math.floor((Math.random() * 94));
-        	var ar = new Array();
+	genRP: 'randRP',
+	randrp: 'randRP',
+	randRP: function(arg, by, room) {
+		var text = this.hasRank(by, '+%@#&~') || room.charAt(0) === ',' ? '' : '/pm ' + by + ', ';
+		arg = arg.split(", ");
+		if (!arg || arg.length < 2) return this.say(room, "Please specify two names, seperated by a comma.");
+		var X = arg[0];
+		var Y = arg[1];
+		var RANDNUM = Math.floor((Math.random() * 94));
+		var ar = new Array();
 
-        	ar[0] = X + " as a superhero and " + Y + " as the sidekick.";
-        	ar[1] = X + " cooking lunch for " + Y + ".";
-        	ar[2] = X + " as a vampire feeding on " + Y + ".";
-        	ar[3] = X + " and " + Y + "  as children playing together.";
-        	ar[4] = X + " as a film noir detective and " + Y + " as the desperate client.";
-        	ar[5] = X + " and " + Y + " in hand to hand combat.";
-        	ar[6] = X + " taking care of an injured " + Y + ".";
-        	ar[7] = X + " giving " + Y + " a piggy back ride.";
-        	ar[8] = X + " frustrated by losing a board game or card game to " + Y + ".";
-        	ar[9] = X + " and " + Y + " fighting together, back to back.  ";
-        	ar[10] = X + " giving " + Y + " a present.";
+		ar[0] = X + " as a superhero and " + Y + " as the sidekick.";
+		ar[1] = X + " cooking lunch for " + Y + ".";
+		ar[2] = X + " as a vampire feeding on " + Y + ".";
+		ar[3] = X + " and " + Y + "  as children playing together.";
+		ar[4] = X + " as a film noir detective and " + Y + " as the desperate client.";
+		ar[5] = X + " and " + Y + " in hand to hand combat.";
+		ar[6] = X + " taking care of an injured " + Y + ".";
+		ar[7] = X + " giving " + Y + " a piggy back ride.";
+		ar[8] = X + " frustrated by losing a board game or card game to " + Y + ".";
+		ar[9] = X + " and " + Y + " fighting together, back to back.  ";
+		ar[10] = X + " giving " + Y + " a present.";
 
-        	ar[11] = X + " and " + Y + " wearing each other's clothes.";
-        	ar[12] = X + " and " + Y + " cuddling.";
-        	ar[13] = X + " and " + Y + " dancing.";
-        	ar[14] = X + " striking the finishing blow on " + Y + ".";
-        	ar[15] = X + " and " + Y + " meeting after they haven't seen each other in a very long time.";
-        	ar[16] = X + " and " + Y + " watching a very sad movie. " + X + " is crying.";
-        	ar[17] = X + " and " + Y + " at a wild party. " + X + " doesn't want to be there.";
-        	ar[18] = X + " and " + Y + " going to an event that requires formal attire.";
-        	ar[19] = X + " and " + Y + " as JRPG style characters.";
-        	ar[20] = X + " and " + Y + " as medieval-fantasy RPG characters archetypes.";
+		ar[11] = X + " and " + Y + " wearing each other's clothes.";
+		ar[12] = X + " and " + Y + " cuddling.";
+		ar[13] = X + " and " + Y + " dancing.";
+		ar[14] = X + " striking the finishing blow on " + Y + ".";
+		ar[15] = X + " and " + Y + " meeting after they haven't seen each other in a very long time.";
+		ar[16] = X + " and " + Y + " watching a very sad movie. " + X + " is crying.";
+		ar[17] = X + " and " + Y + " at a wild party. " + X + " doesn't want to be there.";
+		ar[18] = X + " and " + Y + " going to an event that requires formal attire.";
+		ar[19] = X + " and " + Y + " as JRPG style characters.";
+		ar[20] = X + " and " + Y + " as medieval-fantasy RPG characters archetypes.";
 
-        	ar[21] = X + " is the lead singer and " + Y + " is the guitarist in a band.";
-        	ar[22] = X + " and " + Y + " at the beach.";
-        	ar[23] = X + " and " + Y + " watching the sunset.";
-        	ar[24] = X + " and " + Y + " playing a sports game together.";
-        	ar[25] = X + " mourning over a dead " + Y + ".";
-        	ar[26] = X + " and " + Y + " eating dinner together";
-        	ar[27] = X + " helping " + Y + " with chores.";
-        	ar[28] = X + " is about to do something stupid. " + Y + " does not think this is a good idea.";
-        	ar[29] = X + " with a hangover, but " + Y + " is feeling fine.";
-        	ar[30] = X + " drawing " + Y + ".";
+		ar[21] = X + " is the lead singer and " + Y + " is the guitarist in a band.";
+		ar[22] = X + " and " + Y + " at the beach.";
+		ar[23] = X + " and " + Y + " watching the sunset.";
+		ar[24] = X + " and " + Y + " playing a sports game together.";
+		ar[25] = X + " mourning over a dead " + Y + ".";
+		ar[26] = X + " and " + Y + " eating dinner together";
+		ar[27] = X + " helping " + Y + " with chores.";
+		ar[28] = X + " is about to do something stupid. " + Y + " does not think this is a good idea.";
+		ar[29] = X + " with a hangover, but " + Y + " is feeling fine.";
+		ar[30] = X + " drawing " + Y + ".";
 
-        	ar[31] = X + " and " + Y + " taking care of a bunch of orphan puppies and/or kittens."
-        	ar[32] = X + " and " + Y + " in dressing in drag."
-        	ar[33] = X + " is a member of the royal family and " + Y + " is a lowly peasant."
-        	ar[34] = X + " comforting a sad " + Y + "."
-        	ar[35] = X + " confronting " + Y + " about something bad they have done."
-        	ar[36] = X + " reveals a secret to " + Y + "."
-        	ar[37] = X + " discovers " + Y + "'s terrible secret."
-        	ar[38] = X + " playing pranks on " + Y + "."
-        	ar[39] = X + " getting revenge on " + Y + "."
-        	ar[40] = X + " and " + Y + " as rivals in a competition or contest. " + X + " wins.";
-        
-        	ar[41] = X + " and " + Y + " in matching cosplays";
-        	ar[42] = X + " and " + Y + " go to a bar. " + Y + " gets too drunk and " + X + " has to take them home.";
-        	ar[43] = X + " suspects " + Y + " is a werewolf. " + Y + " is actually hiding a more mundane secret.";
-        	ar[44] = X + " and " + Y + " meet during the zombie apocalypse. " + Y + " needs" + X + "'s help.";
-        	ar[45] = X + " accidentally drinks a love potion and falls for " + Y + ".";
-        	ar[46] = X + " gets amnesia and forgets everything about " + Y + ".";
-        	ar[47] = X + " and " + Y + " get separated in a place that's easy to get lost in. They need to reunite.";
-        	ar[48] = X + " has something that " + Y + " desperately wants or needs. " + X + " won't give it up easily.";
-        	ar[49] = X + " has offended " + Y + " in some way but doesn't realize it.";
-        	ar[50] = X + " and " + Y + " as buddy cops.";
+		ar[31] = X + " and " + Y + " taking care of a bunch of orphan puppies and/or kittens."
+		ar[32] = X + " and " + Y + " in dressing in drag."
+		ar[33] = X + " is a member of the royal family and " + Y + " is a lowly peasant."
+		ar[34] = X + " comforting a sad " + Y + "."
+		ar[35] = X + " confronting " + Y + " about something bad they have done."
+		ar[36] = X + " reveals a secret to " + Y + "."
+		ar[37] = X + " discovers " + Y + "'s terrible secret."
+		ar[38] = X + " playing pranks on " + Y + "."
+		ar[39] = X + " getting revenge on " + Y + "."
+		ar[40] = X + " and " + Y + " as rivals in a competition or contest. " + X + " wins.";
+	
+		ar[41] = X + " and " + Y + " in matching cosplays";
+		ar[42] = X + " and " + Y + " go to a bar. " + Y + " gets too drunk and " + X + " has to take them home.";
+		ar[43] = X + " suspects " + Y + " is a werewolf. " + Y + " is actually hiding a more mundane secret.";
+		ar[44] = X + " and " + Y + " meet during the zombie apocalypse. " + Y + " needs" + X + "'s help.";
+		ar[45] = X + " accidentally drinks a love potion and falls for " + Y + ".";
+		ar[46] = X + " gets amnesia and forgets everything about " + Y + ".";
+		ar[47] = X + " and " + Y + " get separated in a place that's easy to get lost in. They need to reunite.";
+		ar[48] = X + " has something that " + Y + " desperately wants or needs. " + X + " won't give it up easily.";
+		ar[49] = X + " has offended " + Y + " in some way but doesn't realize it.";
+		ar[50] = X + " and " + Y + " as buddy cops.";
 
-        	ar[51] = X + " and " + Y + " play an MMO together. " + X + " is the tank and " + Y + " is the healer.";
-        	ar[52] = X + " is a famous and " + Y + " is their biggest fan.";
-        	ar[53] = X + " is a super hero hiding their secret identity from " + Y + ".";
-        	ar[54] = X + " was bullied by " + Y + " when they were both children. " + Y + " doesn't remember doing it.";
-        	ar[55] = X + " is finally noticed by their sempai, " + Y + ".";
-        	ar[56] = X + " gets a contract to assassinate " + Y + ".";
-        	ar[57] = X + " and " + Y + " are in an arranged marriage, but " + X + " doesn't want to go through with it.";
-        	ar[58] = X + " is " + Y + "'s hired body guard.";
-        	ar[59] = X + " and " + Y + " meet when " + X + " finds " + Y + "'s lost pet.";
-        	ar[60] = X + " and " + Y + " are atheletes from different countries that meet at the Olympics.";
+		ar[51] = X + " and " + Y + " play an MMO together. " + X + " is the tank and " + Y + " is the healer.";
+		ar[52] = X + " is a famous and " + Y + " is their biggest fan.";
+		ar[53] = X + " is a super hero hiding their secret identity from " + Y + ".";
+		ar[54] = X + " was bullied by " + Y + " when they were both children. " + Y + " doesn't remember doing it.";
+		ar[55] = X + " is finally noticed by their sempai, " + Y + ".";
+		ar[56] = X + " gets a contract to assassinate " + Y + ".";
+		ar[57] = X + " and " + Y + " are in an arranged marriage, but " + X + " doesn't want to go through with it.";
+		ar[58] = X + " is " + Y + "'s hired body guard.";
+		ar[59] = X + " and " + Y + " meet when " + X + " finds " + Y + "'s lost pet.";
+		ar[60] = X + " and " + Y + " are atheletes from different countries that meet at the Olympics.";
 
 
-        	ar[61] = X + " is too nervous to approach " + Y + ", and only admires them from afar.";
-        	ar[62] = X + " and " + Y + " are part of a team, but their constant arguing causes problems. They have to pull it together for the sake of the team.";
-        	ar[63] = X + " is a barista at " + Y + "'s favorite coffee shop.";
-        	ar[64] = X + " has stowed away on a ship that " + Y + " works on.";
-        	ar[65] = X + " saved " + Y + "'s life. " + Y + " is honorbound to return the favor.";
-        	ar[66] = X + " is a demon summoned by wizard " + Y + " to do their bidding.";
-        	ar[67] = "A prophecy foretold that " + X + " would be the only one who could defeat the evil " + Y + ".";
-        	ar[68] = X + " and " + Y + " are reincarnated lovers, but aren't initially compatable to each other.";
-        	ar[69] = X + " and " + Y + " meet on a blind date. " + Y + " wants to go on another date, but " + X + " isn't sure.";
-        	ar[70] = X + " is under a terrible curse. " + Y + " knows how to cure it.";
-        
-        	ar[71] = X + " and " + Y + " are the leaders of rival gangs.";
-        	ar[72] = X + " is the leader of an organization. " + Y + " is their loyal second-in-command";
-        	ar[73] = X + " confessed their love to " + Y + ", but was rejected.";
-        	ar[74] = X + " and " + Y + " pretend to be in a relationship for the purpose of an undercover mission.";
-        	ar[75] = X + " frequently has dreams or nightmares about " + Y + ".";
-        	ar[76] = X + " is hired to spy on " + Y + ".";
-        	ar[77] = X + " and " + Y + " got handcuffed together and lost the key.";
-        	ar[78] = X + " is cornered by a bully, but " + Y + " comes to the rescue.";
-        	ar[79] = X + " is bitten by a zombie and has to be put down by " + Y + ".";
-        	ar[80] = X + " and " + Y + " go on a road trip.";
-        
-        	ar[81] = X + " tries to tell " + Y + " that 'It isn't what it looks like, I swear!'";
-        	ar[82] = X + " and " + Y + " swap bodies.";
-        	ar[83] = X + " knits an ugly sweater and forces " + Y + " to wear it.";
-        	ar[84] = X + " loses a bet to " + Y + ".";
-        	ar[85] = X + " and " + Y + " decide to go camping. " + Y + " reads the map upside down and they both become terribly lost.";
-        	ar[86] = X + ", a knight in shining armor, must rescue the distressed " + Y + ".";
-        	ar[87] = X + " gives up their life so that " + Y + " can live.";
-        	ar[88] = X + " and " + Y + " fight over who will sleep where on the bunk bed.";
-        	ar[89] = X + " trains " + Y + " in combat.";
-        	ar[90] = X + " and " + Y + " go ice skating. " + Y + " is not very good and " + X + " has to help them.";
-        
-        	ar[91] = X + " and " + Y + " watch fireworks together.";
-        	ar[92] = X + " and " + Y + " are Pokemon trainers that cross paths and end up traveling together.";
-        	ar[93] = X + " and " + Y + " get caught up in a storm and must stay sheltered together until it passes.";
+		ar[61] = X + " is too nervous to approach " + Y + ", and only admires them from afar.";
+		ar[62] = X + " and " + Y + " are part of a team, but their constant arguing causes problems. They have to pull it together for the sake of the team.";
+		ar[63] = X + " is a barista at " + Y + "'s favorite coffee shop.";
+		ar[64] = X + " has stowed away on a ship that " + Y + " works on.";
+		ar[65] = X + " saved " + Y + "'s life. " + Y + " is honorbound to return the favor.";
+		ar[66] = X + " is a demon summoned by wizard " + Y + " to do their bidding.";
+		ar[67] = "A prophecy foretold that " + X + " would be the only one who could defeat the evil " + Y + ".";
+		ar[68] = X + " and " + Y + " are reincarnated lovers, but aren't initially compatable to each other.";
+		ar[69] = X + " and " + Y + " meet on a blind date. " + Y + " wants to go on another date, but " + X + " isn't sure.";
+		ar[70] = X + " is under a terrible curse. " + Y + " knows how to cure it.";
+	
+		ar[71] = X + " and " + Y + " are the leaders of rival gangs.";
+		ar[72] = X + " is the leader of an organization. " + Y + " is their loyal second-in-command";
+		ar[73] = X + " confessed their love to " + Y + ", but was rejected.";
+		ar[74] = X + " and " + Y + " pretend to be in a relationship for the purpose of an undercover mission.";
+		ar[75] = X + " frequently has dreams or nightmares about " + Y + ".";
+		ar[76] = X + " is hired to spy on " + Y + ".";
+		ar[77] = X + " and " + Y + " got handcuffed together and lost the key.";
+		ar[78] = X + " is cornered by a bully, but " + Y + " comes to the rescue.";
+		ar[79] = X + " is bitten by a zombie and has to be put down by " + Y + ".";
+		ar[80] = X + " and " + Y + " go on a road trip.";
+	
+		ar[81] = X + " tries to tell " + Y + " that 'It isn't what it looks like, I swear!'";
+		ar[82] = X + " and " + Y + " swap bodies.";
+		ar[83] = X + " knits an ugly sweater and forces " + Y + " to wear it.";
+		ar[84] = X + " loses a bet to " + Y + ".";
+		ar[85] = X + " and " + Y + " decide to go camping. " + Y + " reads the map upside down and they both become terribly lost.";
+		ar[86] = X + ", a knight in shining armor, must rescue the distressed " + Y + ".";
+		ar[87] = X + " gives up their life so that " + Y + " can live.";
+		ar[88] = X + " and " + Y + " fight over who will sleep where on the bunk bed.";
+		ar[89] = X + " trains " + Y + " in combat.";
+		ar[90] = X + " and " + Y + " go ice skating. " + Y + " is not very good and " + X + " has to help them.";
+	
+		ar[91] = X + " and " + Y + " watch fireworks together.";
+		ar[92] = X + " and " + Y + " are Pokemon trainers that cross paths and end up traveling together.";
+		ar[93] = X + " and " + Y + " get caught up in a storm and must stay sheltered together until it passes.";
 
-        	this.say(room, text + "Randomly Generated RP: " + ar[RANDNUM]);
-    	}
+		this.say(room, text + "Randomly Generated RP: " + ar[RANDNUM]);
+	}
 };

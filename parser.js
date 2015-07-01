@@ -9,6 +9,7 @@
  */
 
 var sys = require('sys');
+var http = require('http');
 var https = require('https');
 var url = require('url');
 
@@ -19,13 +20,13 @@ const FLOOD_MESSAGE_TIME = 6 * 1000;
 const MIN_CAPS_LENGTH = 18;
 const MIN_CAPS_PROPORTION = 0.8;
 
-settings = {};
+var settings = {};
 try {
 	settings = JSON.parse(fs.readFileSync('settings.json'));
 	if (!Object.keys(settings).length && settings !== {}) settings = {};
 } catch (e) {} // file doesn't exist [yet]
 
-messages = {};
+var messages = {};
 try {
 	messages = JSON.parse(fs.readFileSync('messages.json'));
 	if (!Object.keys(messages).length && messages !== {}) messages = {};
@@ -39,10 +40,10 @@ exports.parse = {
 	ranks: {},
 	blacklistRegexes: {},
 
-	data: function(data) {
+	data: function (data) {
 		if (data.substr(0, 1) === 'a') {
 			data = JSON.parse(data.substr(1));
-			if (data instanceof Array) {
+			if (Array.isArray(data)) {
 				for (var i = 0, len = data.length; i < len; i++) {
 					this.splitMessage(data[i]);
 				}
@@ -51,7 +52,7 @@ exports.parse = {
 			}
 		}
 	},
-	splitMessage: function(message) {
+	splitMessage: function (message) {
 		if (!message) return;
 
 		var room = '';
@@ -76,195 +77,203 @@ exports.parse = {
 			this.message(spl[i], room);
 		}
 	},
-	message: function(message, room) {
+	message: function (message, room) {
 		var spl = message.split('|');
 		switch (spl[1]) {
-			case 'challstr':
-				info('received challstr, logging in...');
-				var id = spl[2];
-				var str = spl[3];
+		case 'challstr':
+			info('received challstr, logging in...');
+			var id = spl[2];
+			var str = spl[3];
 
-				var requestOptions = {
-					hostname: this.actionUrl.hostname,
-					port: this.actionUrl.port,
-					path: this.actionUrl.pathname,
-					agent: false
+			var requestOptions = {
+				hostname: this.actionUrl.hostname,
+				port: this.actionUrl.port,
+				path: this.actionUrl.pathname,
+				agent: false
+			};
+
+			if (!Config.pass) {
+				requestOptions.method = 'GET';
+				requestOptions.path += '?act=getassertion&userid=' + toId(Config.nick) + '&challengekeyid=' + id + '&challenge=' + str;
+			} else {
+				requestOptions.method = 'POST';
+				var data = 'act=login&name=' + Config.nick + '&pass=' + Config.pass + '&challengekeyid=' + id + '&challenge=' + str;
+				requestOptions.headers = {
+					'Content-Type': 'application/x-www-form-urlencoded',
+					'Content-Length': data.length
 				};
+			}
 
-				if (!Config.pass) {
-					requestOptions.method = 'GET';
-					requestOptions.path += '?act=getassertion&userid=' + toId(Config.nick) + '&challengekeyid=' + id + '&challenge=' + str;
-				} else {
-					requestOptions.method = 'POST';
-					var data = 'act=login&name=' + Config.nick + '&pass=' + Config.pass + '&challengekeyid=' + id + '&challenge=' + str;
-					requestOptions.headers = {
-						'Content-Type': 'application/x-www-form-urlencoded',
-						'Content-Length': data.length
-					};
-				}
-
-				var req = https.request(requestOptions, function(res) {
-					res.setEncoding('utf8');
-					var data = '';
-					res.on('data', function(chunk) {
-						data += chunk;
-					});
-					res.on('end', function() {
-						if (data === ';') {
-							error('failed to log in; nick is registered - invalid or no password given');
-							process.exit(-1);
-						}
-						if (data.length < 50) {
-							error('failed to log in: ' + data);
-							process.exit(-1);
-						}
-
-						if (data.indexOf('heavy load') !== -1) {
-							error('the login server is under heavy load; trying again in one minute');
-							setTimeout(function() {
-								this.message(message);
-							}.bind(this), 60 * 1000);
-							return;
-						}
-
-						if (data.substr(0, 16) === '<!DOCTYPE html>') {
-							error('Connection error 522; trying agian in one minute');
-							setTimeout(function() {
-								this.message(message);
-							}.bind(this), 60 * 1000);
-							return;
-						}
-
-						try {
-							data = JSON.parse(data.substr(1));
-							if (data.actionsuccess) {
-								data = data.assertion;
-							} else {
-								error('could not log in; action was not successful: ' + JSON.stringify(data));
-								process.exit(-1);
-							}
-						} catch (e) {}
-						send('|/trn ' + Config.nick + ',0,' + data);
-					}.bind(this));
-				}.bind(this));
-
-				req.on('error', function(err) {
-					error('login error: ' + sys.inspect(err));
+			var data = '';
+			var req = https.request(requestOptions, function (res) {
+				res.setEncoding('utf8');
+				res.on('data', function (chunk) {
+					data += chunk;
 				});
-
-				if (data) req.write(data);
-				req.end();
-				break;
-			case 'updateuser':
-				if (spl[2] !== Config.nick) return;
-
-				if (spl[3] !== '1') {
-					error('failed to log in, still guest');
-					process.exit(-1);
-				}
-
-				ok('logged in as ' + spl[2]);
-
-				// Now join the rooms
-				for (var i = 0, len = Config.rooms.length; i < len; i++) {
-					var room = toId(Config.rooms[i]);
-					if (room === 'lobby' && Config.serverid === 'showdown') continue;
-					send('|/join ' + room);
-				}
-				for (var i = 0, len = Config.privaterooms.length; i < len; i++) {
-					var room = toId(Config.privaterooms[i]);
-					if (room === 'lobby' && Config.serverid === 'showdown') continue;
-					send('|/join ' + room);
-				}
-				if (Config.avatarNumber) send('|/avatar ' + Config.avatarNumber);
-				if (this.settings.blacklist) {
-					var blacklist = this.settings.blacklist;
-					for (var room in blacklist) {
-						this.updateBlacklistRegex(room);
+				res.on('end', function () {
+					if (data === ';') {
+						error('failed to log in; nick is registered - invalid or no password given');
+						process.exit(-1);
 					}
-				}
-				setInterval(this.cleanChatData.bind(this), 30 * 60 * 1000);
-				break;
-			case 'c':
-				var by = spl[2];
-				if (this.isBlacklisted(toId(by), room)) this.say(room, '/roomban ' + by + ', Blacklisted user');
-
-				spl = spl.slice(3).join('|');
-				if ('%@#&~'.indexOf(by.charAt(0)) < 0) this.processChatData(toId(by), room, spl);
-				this.chatMessage(spl, by, room);
-				break;
-			case 'c:':
-				var by = spl[3];
-				if (this.isBlacklisted(toId(by), room)) this.say(room, '/roomban ' + by + ', Blacklisted user');
-
-				spl = spl.slice(4).join('|');
-				if ('%@#&~'.indexOf(by.charAt(0)) < 0) this.processChatData(toId(by), room, spl);
-				this.chatMessage(spl, by, room);
-				break;
-			case 'pm':
-				var by = spl[2];
-				this.chatMessage(spl.slice(4).join('|'), by, ',' + by);
-				break;
-			case 'N':
-				var by = spl[2];
-				if (this.isBlacklisted(toId(by), room)) this.say(room, '/roomban ' + by + ', Blacklisted user');
-				this.updateSeen(spl[3], spl[1], toId(by));
-				if (Config.logmain) console.log(spl[3].cyan + " has changed their nickname to " + by.cyan);
-				break;
-			case 'J': case 'j':
-				var by = spl[2];
-				if (this.isBlacklisted(toId(by), room)) return this.say(room, '/roomban ' + by + ', Blacklisted user');
-				this.updateSeen(toId(by), spl[1], room);
-				// Send pending mail
-				var user = toId(by);
-				var mail = this.messages[user];
-				if (mail) {
-					for (var i = 0, len = mail.length; i < len; i++) {
-						this.say(room, "/pm " + by + ", " + this.getTimeAgo(mail[i].time) + " ago, " + mail[i].from + " said: " + mail[i].text);
+					if (data.length < 50) {
+						error('failed to log in: ' + data);
+						process.exit(-1);
 					}
-					delete this.messages[user];
-					this.writeMessages();
-				}
-				if (Config.logmain) console.log(by.cyan + " has " + "joined".green + " the room " + room);
-				if (Config.reply) {
-					for (var i = 0, len = Config.greetings.length; i < len; i++) {
-						if (toId(Config.greetings[i][0]) === user) {
-							this.say(room, Config.greetings[i][1]);
-							break;
+
+					if (data.indexOf('heavy load') !== -1) {
+						error('the login server is under heavy load; trying again in one minute');
+						setTimeout(function () {
+							this.message(message);
+						}.bind(this), 60 * 1000);
+						return;
+					}
+
+					if (data.substr(0, 16) === '<!DOCTYPE html>') {
+						error('Connection error 522; trying agian in one minute');
+						setTimeout(function () {
+							this.message(message);
+						}.bind(this), 60 * 1000);
+						return;
+					}
+
+					try {
+						data = JSON.parse(data.substr(1));
+						if (data.actionsuccess) {
+							data = data.assertion;
+						} else {
+							error('could not log in; action was not successful: ' + JSON.stringify(data));
+							process.exit(-1);
 						}
+					} catch (e) {}
+					send('|/trn ' + Config.nick + ',0,' + data);
+				}.bind(this));
+			}.bind(this));
+
+			req.on('error', function (err) {
+				error('login error: ' + sys.inspect(err));
+			});
+
+			if (data) req.write(data);
+			req.end();
+			break;
+		case 'updateuser':
+			if (spl[2] !== Config.nick) return;
+
+			if (spl[3] !== '1') {
+				error('failed to log in, still guest');
+				process.exit(-1);
+			}
+
+			ok('logged in as ' + spl[2]);
+
+			// Now join the rooms
+			var roomid;
+			for (var i = 0, len = Config.rooms.length; i < len; i++) {
+				roomid = toId(Config.rooms[i]);
+				if (roomid === 'lobby' && Config.serverid === 'showdown') continue;
+				send('|/join ' + roomid);
+			}
+			for (var i = 0, len = Config.privaterooms.length; i < len; i++) {
+				roomid = toId(Config.privaterooms[i]);
+				if (roomid === 'lobby' && Config.serverid === 'showdown') continue;
+				send('|/join ' + roomid);
+			}
+			if (Config.avatarNumber) send('|/avatar ' + Config.avatarNumber);
+			if (this.settings.blacklist) {
+				var blacklist = this.settings.blacklist;
+				for (var roomid in blacklist) {
+					this.updateBlacklistRegex(roomid);
+				}
+			}
+			setInterval(this.cleanChatData.bind(this), 30 * 60 * 1000);
+			break;
+		case 'c':
+			var by = spl[2];
+			if (this.isBlacklisted(toId(by), room)) this.say(room, '/roomban ' + by + ', Blacklisted user');
+
+			spl = spl.slice(3).join('|');
+			if ('%@#&~'.indexOf(by.charAt(0)) < 0) this.processChatData(toId(by), room, spl);
+			this.chatMessage(spl, by, room);
+			break;
+		case 'c:':
+			var by = spl[3];
+			if (this.isBlacklisted(toId(by), room)) this.say(room, '/roomban ' + by + ', Blacklisted user');
+
+			spl = spl.slice(4).join('|');
+			if ('%@#&~'.indexOf(by.charAt(0)) < 0) this.processChatData(toId(by), room, spl);
+			this.chatMessage(spl, by, room);
+			break;
+		case 'pm':
+			var by = spl[2];
+			this.chatMessage(spl.slice(4).join('|'), by, ',' + by);
+			break;
+		case 'N':
+			var by = spl[2];
+			if (this.isBlacklisted(toId(by), room)) this.say(room, '/roomban ' + by + ', Blacklisted user');
+			this.updateSeen(spl[3], spl[1], toId(by));
+			if (Config.logmain) console.log(spl[3].cyan + " has changed their nickname to " + by.cyan);
+			break;
+		case 'J': case 'j':
+			var by = spl[2];
+			if (this.isBlacklisted(toId(by), room)) return this.say(room, '/roomban ' + by + ', Blacklisted user');
+			this.updateSeen(toId(by), spl[1], room);
+			// Send pending mail
+			var user = toId(by);
+			var mail = this.messages[user];
+			if (mail) {
+				for (var i = 0, len = mail.length; i < len; i++) {
+					this.say(room, "/pm " + by + ", " + this.getTimeAgo(mail[i].time) + " ago, " + mail[i].from + " said: " + mail[i].text);
+				}
+				delete this.messages[user];
+				this.writeMessages();
+			}
+			if (Config.logmain) console.log(by.cyan + " has " + "joined".green + " the room " + room);
+			if (Config.reply) {
+				for (var i = 0, len = Config.greetings.length; i < len; i++) {
+					if (toId(Config.greetings[i][0]) === user) {
+						this.say(room, Config.greetings[i][1]);
+						break;
 					}
 				}
-				break;
-			case 'l': case 'L':
-				this.updateSeen(toId(spl[2]), spl[1], room);
-				if (Config.logmain) console.log(spl[2].cyan + " has " + "left".red + " the room " + room);
-				break;
-			default:
-				if (Config.readElse) {
-					var oS = spl.toString();
-					if (oS.substr(0, 9) === ",formats," || oS === ",queryresponse,rooms,null" || oS === "You are already blocking challenges!" || oS.substr(0, 4) === ",raw" || oS.substr(0, 18) === ",updatechallenges,") return false;
-					console.log(oS);
-				}
+			}
+			break;
+		case 'l': case 'L':
+			this.updateSeen(toId(spl[2]), spl[1], room);
+			if (Config.logmain) console.log(spl[2].cyan + " has " + "left".red + " the room " + room);
+			break;
+		default:
+			if (Config.readElse) {
+				var oS = spl.toString();
+				if (oS.substr(0, 9) === ",formats," || oS === ",queryresponse,rooms,null" || oS === "You are already blocking challenges!" || oS.substr(0, 4) === ",raw" || oS.substr(0, 18) === ",updatechallenges,") return false;
+				console.log(oS);
+			}
 		}
 	},
-	chatMessage: function(message, by, room) {
+	chatMessage: function (message, by, room) {
 		if (toId(by) === toId(Config.nick)) return;
 		var cmdrMessage = '["' + room + '|' + by + '|' + message + '"]';
 		message = message.trim();
 		if (room.charAt(0) === ',') {
 			// auto accept invitations to rooms
-			if (message.substr(0,8) === '/invite ' && this.hasRank(by, '%@&~') && !(Config.serverid === 'showdown' && toId(message.substr(8)) === 'lobby')) {
+			if (message.substr(0, 8) === '/invite ' && this.hasRank(by, '%@&~') && !(Config.serverid === 'showdown' && toId(message.substr(8)) === 'lobby')) {
 				this.say('', '/join ' + message.substr(8));
 			}
 			if (Config.logpms) console.log("Private Message from ".red + by.cyan + ": ".cyan + message);
 		} else if (Config.logmain) {
 			var sender;
-			if (!this.hasRank(by, '+%@#~')) { sender = by }
-			else if (this.hasRank(by, '+')) { sender = by.yellow }
-			else if (this.hasRank(by, '%')) { sender = by.cyan }
-			else if (this.hasRank(by, '@')) { sender = by.blue }
-			else if (this.hasRank(by, '#')) { sender = by.red }
-			else if (this.hasRank(by, '~')) { sender = by.green }
+			if (!this.hasRank(by, '+%@#~')) {
+				sender = by;
+			} else if (this.hasRank(by, '+')) {
+				sender = by.yellow;
+			} else if (this.hasRank(by, '%')) {
+				sender = by.cyan;
+			} else if (this.hasRank(by, '@')) {
+				sender = by.blue;
+			} else if (this.hasRank(by, '#')) {
+				sender = by.red;
+			} else if (this.hasRank(by, '~')) {
+				sender = by.green;
+			}
 			console.log(room.cyan + ': '.cyan + sender + ': '.cyan + message);
 		}
 		if (Config.reply) {
@@ -281,11 +290,12 @@ exports.parse = {
 		message = message.substr(Config.commandcharacter.length);
 		var index = message.indexOf(' ');
 		var arg = '';
+		var cmd;
 		if (index > -1) {
-			var cmd = message.substr(0, index);
+			cmd = message.substr(0, index);
 			arg = message.substr(index + 1).trim();
 		} else {
-			var cmd = message;
+			cmd = message;
 		}
 
 		if (!!Commands[cmd]) {
@@ -301,18 +311,18 @@ exports.parse = {
 			}
 		}
 	},
-	say: function(room, text) {
+	say: function (room, text) {
 		if (room.charAt(0) !== ',') {
 			send((room !== 'lobby' ? room : '') + '|' + text);
 		} else {
 			send('|/pm ' + room.substr(1) + ', ' + text);
 		}
 	},
-	hasRank: function(user, rank) {
+	hasRank: function (user, rank) {
 		var hasRank = (rank.split('').indexOf(user.charAt(0)) !== -1) || (Config.excepts.indexOf(toId(user)) !== -1);
 		return hasRank;
 	},
-	canUse: function(cmd, room, user) {
+	canUse: function (cmd, room, user) {
 		var canUse = false;
 		var ranks = ' +%@&#~';
 		if (!this.settings[cmd] || !this.settings[cmd][room]) {
@@ -324,11 +334,11 @@ exports.parse = {
 		}
 		return canUse;
 	},
-	isBlacklisted: function(user, room) {
+	isBlacklisted: function (user, room) {
 		var blacklistRegex = this.blacklistRegexes[room];
 		return blacklistRegex && blacklistRegex.test(user);
 	},
-	blacklistUser: function(user, room) {
+	blacklistUser: function (user, room) {
 		var blacklist = this.settings.blacklist || (this.settings.blacklist = {});
 		if (blacklist[room]) {
 			if (blacklist[room][user]) return false;
@@ -340,7 +350,7 @@ exports.parse = {
 		this.updateBlacklistRegex(room);
 		return true;
 	},
-	unblacklistUser: function(user, room) {
+	unblacklistUser: function (user, room) {
 		var blacklist = this.settings.blacklist;
 		if (!blacklist || !blacklist[room] || !blacklist[room][user]) return false;
 
@@ -353,7 +363,7 @@ exports.parse = {
 		}
 		return true;
 	},
-	updateBlacklistRegex: function(room) {
+	updateBlacklistRegex: function (room) {
 		var blacklist = this.settings.blacklist[room];
 		var buffer = [];
 		for (var entry in blacklist) {
@@ -365,7 +375,7 @@ exports.parse = {
 		}
 		this.blacklistRegexes[room] = new RegExp(buffer.join('|'), 'i');
 	},
-	uploadToHastebin: function(toUpload, callback) {
+	uploadToHastebin: function (toUpload, callback) {
 		if (typeof callback !== 'function') return false;
 		var reqOpts = {
 			hostname: 'hastebin.com',
@@ -388,7 +398,7 @@ exports.parse = {
 		req.write(toUpload);
 		req.end();
 	},
-	processChatData: function(user, room, msg) {
+	processChatData: function (user, room, msg) {
 		// NOTE: this is still in early stages
 		if (!user || room.charAt(0) === ',') return;
 
@@ -433,8 +443,8 @@ exports.parse = {
 			// moderation for flooding (more than x lines in y seconds)
 			var times = roomData.times;
 			var timesLen = times.length;
-			var isFlooding = (timesLen >= FLOOD_MESSAGE_NUM && (now - times[timesLen - FLOOD_MESSAGE_NUM]) < FLOOD_MESSAGE_TIME
-				&& (now - times[timesLen - FLOOD_MESSAGE_NUM]) > (FLOOD_PER_MSG_MIN * FLOOD_MESSAGE_NUM));
+			var isFlooding = (timesLen >= FLOOD_MESSAGE_NUM && (now - times[timesLen - FLOOD_MESSAGE_NUM]) < FLOOD_MESSAGE_TIME &&
+				(now - times[timesLen - FLOOD_MESSAGE_NUM]) > (FLOOD_PER_MSG_MIN * FLOOD_MESSAGE_NUM));
 			if ((useDefault || !('flooding' in modSettings)) && isFlooding) {
 				if (pointVal < 2) {
 					pointVal = 2;
@@ -482,7 +492,7 @@ exports.parse = {
 			}
 		}
 	},
-	cleanChatData: function() {
+	cleanChatData: function () {
 		var chatData = this.chatData;
 		for (var user in chatData) {
 			for (var room in chatData[user]) {
@@ -508,7 +518,7 @@ exports.parse = {
 		}
 	},
 
-	updateSeen: function(user, type, detail) {
+	updateSeen: function (user, type, detail) {
 		if (type !== 'n' && Config.rooms.indexOf(detail) === -1 || Config.privaterooms.indexOf(toId(detail)) > -1) return;
 		var now = Date.now();
 		if (!this.chatData[user]) this.chatData[user] = {
@@ -541,22 +551,22 @@ exports.parse = {
 		userData.lastSeen = msg;
 		userData.seenAt = now;
 	},
-	getTimeAgo: function(time) {
+	getTimeAgo: function (time) {
 		time = ~~((Date.now() - time) / 1000);
 
 		var seconds = time % 60;
 		var times = [];
-		if (seconds) times.push(seconds + (seconds === 1 ? ' second': ' seconds'));
+		if (seconds) times.push(seconds + (seconds === 1 ? ' second' : ' seconds'));
 		if (time >= 60) {
 			time = ~~((time - seconds) / 60);
 			var minutes = time % 60;
 			if (minutes) times.unshift(minutes + (minutes === 1 ? ' minute' : ' minutes'));
 			if (time >= 60) {
 				time = ~~((time - minutes) / 60);
-				hours = time % 24;
+				var hours = time % 24;
 				if (hours) times.unshift(hours + (hours === 1 ? ' hour' : ' hours'));
 				if (time >= 24) {
-					days = ~~((time - hours) / 24);
+					var days = ~~((time - hours) / 24);
 					if (days) times.unshift(days + (days === 1 ? ' day' : ' days'));
 				}
 			}
@@ -564,26 +574,26 @@ exports.parse = {
 		if (!times.length) return '0 seconds';
 		return times.join(', ');
 	},
-	writeSettings: (function() {
+	writeSettings: (function () {
 		var writing = false;
 		var writePending = false; // whether or not a new write is pending
-		var finishWriting = function() {
+		var finishWriting = function () {
 			writing = false;
 			if (writePending) {
 				writePending = false;
 				this.writeSettings();
 			}
 		};
-		return function() {
+		return function () {
 			if (writing) {
 				writePending = true;
 				return;
 			}
 			writing = true;
 			var data = JSON.stringify(this.settings);
-			fs.writeFile('settings.json.0', data, function() {
+			fs.writeFile('settings.json.0', data, function () {
 				// rename is atomic on POSIX, but will throw an error on Windows
-				fs.rename('settings.json.0', 'settings.json', function(err) {
+				fs.rename('settings.json.0', 'settings.json', function (err) {
 					if (err) {
 						// This should only happen on Windows.
 						fs.writeFile('settings.json', data, finishWriting);
@@ -594,27 +604,26 @@ exports.parse = {
 			});
 		};
 	})(),
-	writeMessages: (function() {
+	writeMessages: (function () {
 		var writing = false;
 		var writePending = false; // whether or not a new write is pending
-		var finishWriting = function() {
+		var finishWriting = function () {
 			writing = false;
 			if (writePending) {
 				writePending = false;
 				this.writeMessages();
 			}
 		};
-		return function() {
+		return function () {
 			if (writing) {
 				writePending = true;
 				return;
-
 			}
 			writing = true;
 			var data = JSON.stringify(this.messages);
-			fs.writeFile('messages.json.0', data, function() {
+			fs.writeFile('messages.json.0', data, function () {
 				// rename is atomic on POSIX, but will throw an error on Windows
-				fs.rename('messages.json.0', 'messages.json', function(err) {
+				fs.rename('messages.json.0', 'messages.json', function (err) {
 					if (err) {
 						// This should only happen on Windows.
 						fs.writeFile('messages.json', data, finishWriting);
@@ -625,7 +634,7 @@ exports.parse = {
 			});
 		};
 	})(),
-	shuffle: function(array) {
+	shuffle: function (array) {
 		for (var i = array.length - 1; i > 0; i--) {
 			var j = Math.floor(Math.random() * (i + 1));
 			var temp = array[i];
@@ -634,14 +643,14 @@ exports.parse = {
 		}
 		return array;
 	},
-	uncacheTree: function(root) {
+	uncacheTree: function (root) {
 		var uncache = [require.resolve(root)];
 		do {
 			var newuncache = [];
 			for (var i = 0; i < uncache.length; ++i) {
 				if (require.cache[uncache[i]]) {
 					newuncache.push.apply(newuncache,
-						require.cache[uncache[i]].children.map(function(module) {
+						require.cache[uncache[i]].children.map(function (module) {
 							return module.filename;
 						})
 					);

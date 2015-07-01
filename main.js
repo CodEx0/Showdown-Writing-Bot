@@ -16,15 +16,15 @@ function runNpm(command) {
 	var child_process = require('child_process');
 	var npm = child_process.spawn('npm', [command]);
 
-	npm.stdout.on('data', function(data) {
+	npm.stdout.on('data', function (data) {
 		process.stdout.write(data);
 	});
 
-	npm.stderr.on('data', function(data) {
+	npm.stderr.on('data', function (data) {
 		process.stderr.write(data);
 	});
 
-	npm.on('close', function(code) {
+	npm.on('close', function (code) {
 		if (!code) {
 			child_process.fork('main.js').disconnect();
 		}
@@ -40,55 +40,55 @@ try {
 	return runNpm('install');
 }
 
-global.info = function(text) {
+global.info = function (text) {
 	if (Config.debuglevel > 3) return;
 	console.log('info'.cyan + '  ' + text);
 };
 
-global.debug = function(text) {
+global.debug = function (text) {
 	if (Config.debuglevel > 2) return;
 	console.log('debug'.blue + ' ' + text);
 };
 
-global.recv = function(text) {
+global.recv = function (text) {
 	if (Config.debuglevel > 0) return;
 	console.log('recv'.grey + '  ' + text);
 };
 
-global.cmdr = function(text) { // receiving commands
+global.cmdr = function (text) { // receiving commands
 	if (Config.debuglevel !== 1) return;
 	console.log('cmdr'.grey + '  ' + text);
 };
 
-global.dsend = function(text) {
+global.dsend = function (text) {
 	if (Config.debuglevel > 1) return;
 	console.log('send'.grey + '  ' + text);
 };
 
-global.error = function(text) {
+global.error = function (text) {
 	console.log('error'.red + ' ' + text);
 };
 
-global.ok = function(text) {
+global.ok = function (text) {
 	if (Config.debuglevel > 4) return;
 	console.log('ok'.green + '    ' + text);
 };
 
-global.toId = function(text) {
+global.toId = function (text) {
 	return text.toLowerCase().replace(/[^a-z0-9]/g, '');
 };
 
-global.toTitleCase = function(str) {
-    var strArr = str.split(' ');
-    var newArr = [];
-    for (var i = 0; i < strArr.length; i++) {
-        newArr.push(strArr[i].charAt(0).toUpperCase() + strArr[i].slice(1));
-    }
-    str = newArr.join(' ');
-    return str;
+global.toTitleCase = function (str) {
+	var strArr = str.split(' ');
+	var newArr = [];
+	for (var i = 0; i < strArr.length; i++) {
+		newArr.push(strArr[i].charAt(0).toUpperCase() + strArr[i].slice(1));
+	}
+	str = newArr.join(' ');
+	return str;
 };
 
-global.stripCommands = function(text) {
+global.stripCommands = function (text) {
 	text = text.trim();
 	if (text.charAt(0) === '/') return '/' + text;
 	if (text.charAt(0) === '!' || /^>>>? /.test(text)) return ' ' + text;
@@ -106,11 +106,11 @@ global.fs = require('fs');
 try {
 	global.Config = require('./config.js');
 } catch (e) {
- 	error('config.js doesn\'t exist; are you sure you copied config-example.js to config.js?');
- 	process.exit(-1);
+	error('config.js doesn\'t exist; are you sure you copied config-example.js to config.js?');
+	process.exit(-1);
 }
 
-var checkCommandCharacter = function() {
+var checkCommandCharacter = function () {
 	if (!/[^a-z0-9 ]/i.test(Config.commandcharacter)) {
 		error('invalid command character; should at least contain one non-alphanumeric character');
 		process.exit(-1);
@@ -120,11 +120,11 @@ var checkCommandCharacter = function() {
 checkCommandCharacter();
 
 if (Config.watchconfig) {
-	fs.watchFile('./config.js', function(curr, prev) {
+	fs.watchFile('./config.js', function (curr, prev) {
 		if (curr.mtime <= prev.mtime) return;
 		try {
 			delete require.cache[require.resolve('./config.js')];
-			Config = require('./config.js');
+			global.Config = require('./config.js');
 			info('reloaded config.js');
 			checkCommandCharacter();
 		} catch (e) {}
@@ -145,9 +145,9 @@ var queue = [];
 var dequeueTimeout = null;
 var lastSentAt = 0;
 
-global.send = function(data) {
+global.send = function (data) {
 	if (!data || !Connection.connected) return false;
-	
+
 	var now = Date.now();
 	if (now < (lastSentAt + MESSAGE_THROTTLE - 5)) {
 		queue.push(data);
@@ -176,40 +176,40 @@ function dequeue() {
 	send(queue.shift());
 }
 
-var connect = function(retry) {
+var connect = function (retry) {
 	if (retry) {
 		info('retrying...');
 	}
 
 	var ws = new WebSocketClient();
-	ws.on('connectFailed', function(err) {
+	ws.on('connectFailed', function (err) {
 		error('Could not connect to server ' + Config.server + ': ' + err.stack);
 		info('retrying in one minute');
 
-		setTimeout(function() {
+		setTimeout(function () {
 			connect(true);
 		}, 60000);
 	});
 
-	ws.on('connect', function(con) {
-		Connection = con;
+	ws.on('connect', function (con) {
+		global.Connection = con;
 		ok('connected to server ' + Config.server);
 
-		con.on('error', function(err) {
+		con.on('error', function (err) {
 			error('connection error: ' + err.stack);
 		});
 
-		con.on('close', function(code, reason) {
+		con.on('close', function (code, reason) {
 			// Is this always error or can this be intended...?
 			error('connection closed: ' + reason + ' (' + code + ')');
 			info('retrying in one minute');
 
-			setTimeout(function() {
+			setTimeout(function () {
 				connect(true);
 			}, 60000);
 		});
 
-		con.on('message', function(response) {
+		con.on('message', function (response) {
 			if (response.type !== 'utf8') return false;
 			var message = response.utf8Data;
 			recv(message);
@@ -247,8 +247,8 @@ console.log("Now initiating direct control over chat input.");
 console.log("Type '" + Config.commandcharacter + "' without the quotation marks, followed by the room name to ");
 console.log("speak to a certain room from that point onwards.");
 console.log("I am currently speaking to room " + toTitleCase(currentRoom));
-stdin.addListener("data", function(d) {
-	om = d.toString().substring(0, d.length-1);
+stdin.addListener("data", function (d) {
+	var om = d.toString().substring(0, d.length - 1);
 	if (om.substr(0, Config.commandcharacter.length) === Config.commandcharacter) {
 		currentRoom = toId(om.substr(Config.commandcharacter.length));
 		return console.log("Understood. From this point forwards, I shall speak in room " + toTitleCase(currentRoom));
